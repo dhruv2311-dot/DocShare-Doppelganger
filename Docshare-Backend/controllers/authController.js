@@ -2,7 +2,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const generateToken = require('../utils/generateToken');
 const generateOTP = require('../utils/otpGenerator');
-const transporter = require('../config/mailer');
+const { sendEmailWithRetry } = require('../config/mailer');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,28 +98,44 @@ const loginUser = async (req, res) => {
     // ✅ Respond IMMEDIATELY to client — don't block on email
     res.status(200).json({ message: 'OTP sent to your email.', userId: user._id });
 
-    // 📧 Send email in background (fire-and-forget) — runs AFTER response is sent
-    transporter.sendMail({
-      from: `"DocShare" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: 'Your DocShare Login OTP',
-      text: `Your OTP is: ${otp}\n\nValid for 10 minutes. Do not share it.`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px">
-          <h2 style="color:#0F172A;margin-bottom:4px">DocShare Login Code</h2>
-          <p style="color:#475569;margin-top:0">Enter this code to complete sign-in:</p>
-          <div style="background:#F1F5F9;border-radius:12px;padding:24px;text-align:center;margin:20px 0">
-            <span style="font-size:40px;font-weight:700;letter-spacing:14px;color:#C9A227;font-family:monospace">${otp}</span>
-          </div>
-          <p style="color:#94A3B8;font-size:12px">Valid for 10 minutes. If you didn't request this, ignore this email.</p>
-        </div>
-      `,
-    }).then(() => {
-      console.log(`✅ OTP sent → ${user.email}`);
-    }).catch((err) => {
-      console.error('❌ Email failed:', err.message);
-      console.log(`🔑 OTP fallback [${user.email}]: ${otp}`);
-    });
+    // 📧 Send email in background with retry mechanism — runs AFTER response is sent
+    const sendEmail = async () => {
+      try {
+        await sendEmailWithRetry({
+          from: `"DocShare" <${process.env.EMAIL_USER}>`,
+          to: user.email,
+          subject: 'Your DocShare Login OTP',
+          text: `Your OTP is: ${otp}\n\nValid for 10 minutes. Do not share it.`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px">
+              <h2 style="color:#0F172A;margin-bottom:4px">DocShare Login Code</h2>
+              <p style="color:#475569;margin-top:0">Enter this code to complete sign-in:</p>
+              <div style="background:#F1F5F9;border-radius:12px;padding:24px;text-align:center;margin:20px 0">
+                <span style="font-size:40px;font-weight:700;letter-spacing:14px;color:#C9A227;font-family:monospace">${otp}</span>
+              </div>
+              <p style="color:#94A3B8;font-size:12px">Valid for 10 minutes. If you didn't request this, ignore this email.</p>
+            </div>
+          `,
+        });
+        console.log(`✅ OTP sent successfully → ${user.email}`);
+      } catch (error) {
+        console.error('❌ Email sending failed after retries:', error.message);
+        console.log(`🔑 OTP fallback [${user.email}]: ${otp}`);
+        
+        // In production, you might want to log to a monitoring service
+        if (process.env.NODE_ENV === 'production') {
+          console.error('🚨 Production Email Service Alert:', {
+            timestamp: new Date().toISOString(),
+            userEmail: user.email,
+            error: error.message,
+            otpProvided: otp // Only for debugging - remove in production
+          });
+        }
+      }
+    };
+
+    // Fire-and-forget email sending
+    sendEmail().catch(err => console.error('Email service error:', err));
 
   } catch (err) {
     console.error('Login error:', err.message);
