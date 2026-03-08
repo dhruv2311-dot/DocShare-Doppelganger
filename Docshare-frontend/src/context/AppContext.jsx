@@ -67,7 +67,9 @@ export function AppProvider({ children }) {
   // Fetch all data on mount if user is logged in
   const refreshAll = useCallback(async () => {
     const storedUser = getStoredUser();
-    if (!storedUser) return;
+    const token = localStorage.getItem('docshare_token');
+    // Don't make any API calls if the user isn't authenticated
+    if (!storedUser || !token) return;
     setLoadingData(true);
     const promises = [fetchFiles(), fetchLinks()];
     if (storedUser.role === 'Administrator') {
@@ -89,7 +91,8 @@ export function AppProvider({ children }) {
   // This ensures files shared by a Partner appear without a full page reload.
   useEffect(() => {
     const storedUser = getStoredUser();
-    if (storedUser?.role !== 'Client') return;
+    const token = localStorage.getItem('docshare_token');
+    if (storedUser?.role !== 'Client' || !token) return;
 
     // Refresh on window focus (user switches back to tab)
     const handleFocus = () => fetchSharedWithMe();
