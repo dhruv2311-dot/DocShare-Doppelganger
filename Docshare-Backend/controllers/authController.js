@@ -13,7 +13,8 @@ const formatUserResponse = (user) => {
     status: user.status,
     filesCount: user.filesCount,
     joinedAt: user.joinedAt,
-    avatar: user.avatar
+    avatar: user.avatar,
+    mfaEnabled: user.mfaEnabled
   };
 };
 
@@ -61,13 +62,18 @@ const loginUser = async (req, res) => {
       // Send Email
       try {
         await transporter.sendMail({
-          from: process.env.EMAIL_USER,
+          from: `"DocShare" <${process.env.EMAIL_USER}>`,
           to: user.email,
           subject: 'DocShare Login OTP',
           text: `Your OTP for DocShare login is: ${otp}. It is valid for 10 minutes.`
         });
+        console.log(`✅ OTP email sent to ${user.email}`);
       } catch(emailErr) {
-        console.error('Email sending failed, but continuing for dev purposes', emailErr);
+        console.error('❌ Email sending failed:', emailErr.message);
+        // In dev mode, print OTP to console so login still works
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔑 DEV MODE — OTP for ${user.email}: ${otp}`);
+        }
       }
 
       res.status(200).json({ message: 'OTP sent to email', userId: user._id });
@@ -87,6 +93,7 @@ const verifyOTP = async (req, res) => {
 
     if (user && user.otpSecret === otp) {
       user.otpSecret = undefined; // Clear OTP
+      user.mfaEnabled = true;     // Mark MFA as verified/enabled
       await user.save();
 
       res.status(200).json({
