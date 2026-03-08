@@ -26,15 +26,27 @@ const uploadFile = async (req, res) => {
     const fileBuffer = req.file.buffer;
     const fileBase64 = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
 
-    // Upload to Cloudinary
+    // Determine correct resource type:
+    // 'image' for images, 'raw' for documents (PDF, DOC, DOCX, ZIP, etc.)
+    // Using 'auto' maps PDFs to the /image/ delivery pipeline which browsers cannot open.
+    const imageMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+    const cloudinaryResourceType = imageMimeTypes.includes(req.file.mimetype) ? 'image' : 'raw';
+
+    // Upload to Cloudinary.
+    // use_filename: true      → preserve the original filename in the public_id
+    // unique_filename: true   → append a short unique suffix to avoid collisions
+    // This ensures the CDN URL ends with the real extension (e.g. .pdf)
+    // so browsers can identify the file type and render it natively.
     const result = await cloudinary.uploader.upload(fileBase64, {
-       resource_type: 'auto', // Support any correct resource type
-       folder: 'docshare_uploads'
+      resource_type: cloudinaryResourceType,
+      folder: 'docshare_uploads',
+      use_filename: true,
+      unique_filename: true
     });
 
     const fileExtension = req.file.originalname.split('.').pop();
     const fileName = req.file.originalname;
-    
+
     // Save to Database
     const newFile = await File.create({
       fileName,
