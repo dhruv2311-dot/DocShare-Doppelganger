@@ -84,6 +84,29 @@ export function AppProvider({ children }) {
     refreshAll();
   }, [refreshAll]);
 
+  // ─── Auto-refresh "Shared With Me" for Clients ───────────────────────────
+  // Poll every 30 seconds AND refresh when the window regains focus.
+  // This ensures files shared by a Partner appear without a full page reload.
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser?.role !== 'Client') return;
+
+    // Refresh on window focus (user switches back to tab)
+    const handleFocus = () => fetchSharedWithMe();
+    window.addEventListener('focus', handleFocus);
+
+    // Poll every 30 seconds
+    const interval = setInterval(() => {
+      fetchSharedWithMe();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [fetchSharedWithMe]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Optimistic add after upload (AppContext receives the already-created object from API)
   const addFile = (file) => setFiles(prev => [file, ...prev]);
   const addLink = (link) => setLinks(prev => [link, ...prev]);
