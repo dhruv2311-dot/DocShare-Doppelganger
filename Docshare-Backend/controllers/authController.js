@@ -103,13 +103,12 @@ const loginUser = async (req, res) => {
         console.log(`✅ OTP email sent to ${user.email}`);
       } catch (emailErr) {
         console.error('❌ Email sending failed:', emailErr.message);
-        console.log(`🔑 OTP for ${user.email}: ${otp}`);
+        return res.status(500).json({ message: 'Failed to send OTP email. Please try again later.' });
       }
 
       res.status(200).json({
-        message: 'OTP sent to email (check console or fallback if email fails)',
-        userId: user._id,
-        _debug_otp: otp
+        message: 'OTP sent to your email.',
+        userId: user._id
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password.' });

@@ -24,13 +24,6 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.post('/auth/login', { email, password });
 
-      if (data._debug_otp) {
-        console.log('--- DEVELOPMENT OTP ---');
-        console.log(`Your OTP is: ${data._debug_otp}`);
-        console.log('-----------------------');
-        toast.success(`Dev: OTP is ${data._debug_otp}`, { duration: 5000 });
-      }
-
       // Backend sends OTP and returns userId
       setPendingUserId(data.userId);
       setMfaPending(true);
