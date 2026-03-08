@@ -117,10 +117,9 @@ const loginUser = async (req, res) => {
             </div>
           `,
         });
-        console.log(`✅ OTP sent successfully → ${user.email}`);
+        console.log(`✅ OTP sent successfully via email → ${user.email}`);
       } catch (error) {
         console.error('❌ Email sending failed after retries:', error.message);
-        console.log(`🔑 OTP fallback [${user.email}]: ${otp}`);
         
         // In production, you might want to log to a monitoring service
         if (process.env.NODE_ENV === 'production') {
@@ -128,12 +127,16 @@ const loginUser = async (req, res) => {
             timestamp: new Date().toISOString(),
             userEmail: user.email,
             error: error.message,
-            otpProvided: otp // Only for debugging - remove in production
+            otpProvided: otp
           });
         }
       }
     };
 
+    // 🔑 ALWAYS show OTP in console as fallback (for both dev and production)
+    console.log(`🔑 OTP CONSOLE FALLBACK [${user.email}]: ${otp}`);
+    console.log(`⏰ OTP Valid until: ${otpExpiry.toISOString()}`);
+    
     // Fire-and-forget email sending
     sendEmail().catch(err => console.error('Email service error:', err));
 

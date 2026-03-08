@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { sendEmailWithRetry } = require('../config/mailer');
+const testGmailConnection = require('../utils/testGmailConnection');
 
 // Test email configuration endpoint
 router.post('/test-email', async (req, res) => {
@@ -85,6 +86,35 @@ router.get('/email-config', (req, res) => {
     success: true,
     config
   });
+});
+
+// Test Gmail SMTP connection
+router.get('/test-gmail', async (req, res) => {
+  try {
+    console.log('🧪 Starting Gmail SMTP connection test...');
+    const success = await testGmailConnection();
+    
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Gmail SMTP connection test passed',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Gmail SMTP connection test failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('❌ Gmail test endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 module.exports = router;
