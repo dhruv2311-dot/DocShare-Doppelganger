@@ -15,16 +15,17 @@ const app = express();
 connectDB();
 
 // Init Middleware
-app.use(express.json());
-
 // ── CORS ──────────────────────────────────────────────────────────────────
-// Open CORS — allows all origins (Vercel, localhost, any client)
+// CORS must come first so preflight OPTIONS requests get proper headers
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 // ──────────────────────────────────────────────────────────────────────────
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Define Routes
 app.use('/auth', authRoutes);

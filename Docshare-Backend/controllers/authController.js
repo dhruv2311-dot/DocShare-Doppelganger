@@ -20,10 +20,11 @@ const formatUserResponse = (user) => {
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role } = req.body || {};
 
     // ── Input validation ──────────────────────────────────────────
     if (!name || !email || !password) {
+      console.log('Register validation failed - missing fields. Body:', JSON.stringify(req.body));
       return res.status(400).json({ message: 'Name, email, and password are required.' });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
