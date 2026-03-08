@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const connectDB = require('./config/db');
 
 // Import routes
@@ -16,12 +15,16 @@ connectDB();
 
 // Init Middleware
 // ── CORS ──────────────────────────────────────────────────────────────────
-// CORS must come first so preflight OPTIONS requests get proper headers
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+// Manual CORS headers on EVERY response (including errors / 404s)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 // ──────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
