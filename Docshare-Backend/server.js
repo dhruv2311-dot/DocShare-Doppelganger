@@ -28,6 +28,12 @@ app.use('/admin', adminRoutes);
 
 app.get('/', (req, res) => res.send('API Running'));
 
+// 404 catch-all — tells you exactly which route is missing
+app.use((req, res) => {
+  console.warn(`[404] ${req.method} ${req.originalUrl} — Route not found`);
+  res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
