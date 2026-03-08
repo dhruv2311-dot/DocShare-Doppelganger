@@ -78,7 +78,7 @@ const loginUser = async (req, res) => {
     }
     // ─────────────────────────────────────────────────────────────
 
-    // .lean() returns a plain JS object — faster than a full Mongoose document
+    // .lean() gives a plain JS object — faster than a full Mongoose document
     const user = await User.findOne({ email: email.toLowerCase().trim() }).lean();
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -90,28 +90,42 @@ const loginUser = async (req, res) => {
     }
 
     const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // expires in 10 minutes
 
-    // Run DB write and email send in parallel to save a full round-trip
-    const [, emailResult] = await Promise.allSettled([
-      User.updateOne({ _id: user._id }, { $set: { otpSecret: otp } }),
-      transporter.sendMail({
-        from: `"DocShare" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: 'DocShare Login OTP',
-        text: `Your OTP for DocShare login is: ${otp}. It is valid for 10 minutes.`
-      })
-    ]);
+    // ── STEP 1: Save OTP to DB (fast ~50ms) ──────────────────────────────
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { otpSecret: otp, otpExpiry } }
+    );
 
-    if (emailResult.status === 'rejected') {
-      console.error('❌ Email sending failed:', emailResult.reason?.message);
-      return res.status(500).json({ message: 'Failed to send OTP email. Please try again later.' });
-    }
+    // ── STEP 2: Respond IMMEDIATELY — don't wait for email ───────────────
+    res.status(200).json({ message: 'OTP sent to your email.', userId: user._id });
 
-    console.log(`✅ OTP email sent to ${user.email}`);
-    res.status(200).json({
-      message: 'OTP sent to your email.',
-      userId: user._id
+    // ── STEP 3: Send email in background (fire-and-forget) ───────────────
+    // This runs AFTER the response is already sent to the client.
+    transporter.sendMail({
+      from: `"DocShare" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: 'Your DocShare Login OTP',
+      text: `Your OTP for DocShare login is: ${otp}\n\nThis code is valid for 10 minutes. Do not share it with anyone.`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#0F172A">DocShare Login Code</h2>
+          <p style="color:#475569">Use the code below to complete your sign-in:</p>
+          <div style="background:#F1F5F9;border-radius:12px;padding:24px;text-align:center;margin:24px 0">
+            <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#C9A227;font-family:monospace">${otp}</span>
+          </div>
+          <p style="color:#94A3B8;font-size:13px">Valid for 10 minutes. If you didn't request this, you can ignore this email.</p>
+        </div>
+      `
+    }).then(() => {
+      console.log(`✅ OTP email sent to ${user.email}`);
+    }).catch((emailErr) => {
+      console.error('❌ Email sending failed:', emailErr.message);
+      // Fallback: log OTP so login still works during email outages
+      console.log(`🔑 OTP fallback for ${user.email}: ${otp}`);
     });
+    // ─────────────────────────────────────────────────────────────────────
   } catch (error) {
     console.error('Login error:', error.message);
     res.status(500).json({ message: 'Server error. Please try again.', error: error.message });
@@ -129,20 +143,25 @@ const verifyOTP = async (req, res) => {
     // ─────────────────────────────────────────────────────────────
 
     // Verify OTP first with a lean read, then do a single targeted update
-    const existing = await User.findById(userId).select('otpSecret status').lean();
+    const existing = await User.findById(userId).select('otpSecret otpExpiry status').lean();
 
     if (!existing) {
       return res.status(404).json({ message: 'User not found. Please log in again.' });
     }
 
-    if (existing.otpSecret !== String(otp)) {
-      return res.status(401).json({ message: 'Invalid or expired OTP. Please try again.' });
+    // Check OTP expiry
+    if (existing.otpExpiry && new Date() > new Date(existing.otpExpiry)) {
+      return res.status(401).json({ message: 'OTP has expired. Please login again to get a new code.' });
     }
 
-    // Atomically clear OTP and set mfaEnabled, return updated doc
+    if (existing.otpSecret !== String(otp)) {
+      return res.status(401).json({ message: 'Invalid OTP. Please check and try again.' });
+    }
+
+    // Atomically clear OTP fields and set mfaEnabled, return updated doc
     const user = await User.findByIdAndUpdate(
       userId,
-      { $unset: { otpSecret: 1 }, $set: { mfaEnabled: true } },
+      { $unset: { otpSecret: 1, otpExpiry: 1 }, $set: { mfaEnabled: true } },
       { new: true, lean: true }
     );
 

@@ -10,7 +10,8 @@ const UserSchema = new mongoose.Schema({
     default: 'Client' 
   },
   mfaEnabled: { type: Boolean, default: false },
-  otpSecret: { type: String }, // For OTP tracking if needed or simple OTP string
+  otpSecret: { type: String },
+  otpExpiry: { type: Date },   // OTP expiry timestamp
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   joinedAt: { type: Date, default: Date.now },
   avatar: { type: String, default: 'User' },
