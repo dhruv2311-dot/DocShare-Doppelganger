@@ -20,9 +20,9 @@ const connectDB = async () => {
         cached.conn = await cached.promise;
         console.log('MongoDB Connected successfully...');
     } catch (err) {
-        cached.promise = null;
-        console.error(err.message);
-        process.exit(1);
+        cached.promise = null; // allow retry on next request
+        console.error('MongoDB connection error:', err.message);
+        // Do NOT exit — let the server keep running so CORS/health still work
     }
     return cached.conn;
 };
